@@ -98,6 +98,26 @@ class IndexView(TemplateView):
 
         # Now that we've got the data, add it to the context
         context['contributions_by_sector'] = contributions_by_sector
+
+        zips = set(Contribution.objects.all().values_list('zip_code', flat=True))
+
+        all_zips = Contribution.objects.values_list('zip_code', 'amount')
+        garcetti_zips = garcetti_contributions.values_list('zip_code', 'amount')
+        greuel_zips = greuel_contributions.values_list('zip_code', 'amount')
+
+        contributions_by_zip = []
+
+        for zip_code in zips:
+            if zip_code == None:
+                continue
+            contributions_by_zip.append({
+                'zip': zip_code,
+                'garcetti': sum([i[1] for i in garcetti_zips if i[0] == zip_code]),
+                'greuel': sum([i[1] for i in greuel_zips if i[0] == zip_code]),
+                'total': sum([i[1] for i in all_zips if i[0] == zip_code]),
+            })
+
+        context['contributions_by_zip'] = contributions_by_zip
         # return the amended context to the template
         return context
 

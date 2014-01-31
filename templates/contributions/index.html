@@ -10,11 +10,42 @@
         Or, if you want to get fancy, you can edit the project.css file
         in the templates/static/css directory.
     */
+
+    #map {
+        width: 800px;
+        height: 500px;
+    }
+
+    .info {
+        padding: 6px 8px;
+        font: 14px/16px Arial, Helvetica, sans-serif;
+        background: white;
+        background: rgba(255,255,255,0.8);
+        box-shadow: 0 0 15px rgba(0,0,0,0.2);
+        border-radius: 5px;
+    }
+    .info h4 {
+        margin: 0 0 5px;
+        color: #777;
+     }
+
+     .legend {
+        line-height: 18px;
+        color: #555;
+      }
+      .legend i {
+        width: 18px;
+        height: 18px;
+        float: left;
+        margin-right: 8px;
+        opacity: 0.7;
+      }
 </style>
 <!--
     If you want to make your own new CSS file, add a link to it here like this:
         <link rel="stylesheet" href="{% static "css/my-fab-css.css" %}">
  -->
+<link rel="stylesheet" href="http://cdn.leafletjs.com/leaflet-0.7.2/leaflet.css" />
 {% endblock %}
 
 {% block content %}
@@ -83,4 +114,146 @@
             {% endfor %}
         </tbody>
     </table>
+
+    <h2>Map of Total Contributions by Zip Code</h2>
+
+    <div id="map"></div>
+
+<script src="http://cdn.leafletjs.com/leaflet-0.7.2/leaflet.js"></script>
+<script src="{% static "js/zips.js" %}"></script>
+<script>
+
+    for (var i = 0; i < zipcodes.features.length; i++)
+    {
+        var zip_code = zipcodes.features[i];
+        zip_code.properties.total = 0;
+        zip_code.properties.garcetti = 0;
+        zip_code.properties.greuel = 0;
+        {% for zip in contributions_by_zip %}
+            if ({{ zip.zip }} == zip_code.properties.external_id)
+            {
+                zip_code.properties.total = {{ zip.total }};
+                zip_code.properties.garcetti = {{ zip.garcetti }};
+                zip_code.properties.greuel = {{ zip.greuel }};
+            }
+        {% endfor %}
+    }    
+    
+            
+    var map = L.map('map').setView([34.05, -118.25], 9);
+    L.tileLayer('http://{s}.tile.cloudmade.com/d4fc77ea4a63471cab2423e66626cbb6/{styleId}/256/{z}/{x}/{y}.png', {
+            styleId: 22677
+            }).addTo(map);
+
+    var info = L.control();
+
+    info.onAdd = function (map) {
+        this._div = L.DomUtil.create('div', 'info');
+        this.update();
+        return this._div;
+    };
+
+    info.update = function (props) {
+        this._div.innerHTML = '<h4>Contributions by Zip Code</h4>' + (props ?
+            '<b>' + props.external_id + '</b><br />' + props.total + ' dollars contributed'
+            : 'Hover over a zip code');
+    };
+
+    info.addTo(map);
+
+    function getColor(d) {
+        return d > 100000 ? '#006d2c' :
+               d > 10000 ? '#2ca25f' :
+               d > 1000 ? '#66c2a4' :
+               d > 1 ? '#b2e2e2' :
+                        '#ffffff';
+    }
+
+    function style(feature) {
+        return {
+            weight: 2,
+            opacity: 1,
+            color: 'white',
+            dashArray: '3',
+            fillOpacity: 0.7,
+            fillColor: getColor(feature.properties.total)
+        };
+    }
+
+    function highlightFeature(e) {
+        var layer = e.target;
+
+        layer.setStyle({
+            weight: 5,
+            color: '#666',
+            dashArray: '',
+            fillOpacity: 0.7
+            });
+
+            if (!L.Browser.ie && !L.Browser.opera) {
+                layer.bringToFront();
+            }
+
+            info.update(layer.feature.properties);
+    }
+
+    var geojson;
+
+    function resetHighlight(e) {
+        geojson.resetStyle(e.target);
+        info.update();
+    }
+
+    function zoomToFeature(e) {
+        map.fitBounds(e.target.getBounds());
+    }
+
+    function onEachFeature(feature, layer) {
+        layer.on({
+            mouseover: highlightFeature,
+            mouseout: resetHighlight,
+            click: zoomToFeature
+        });
+    }
+
+    geojson = L.geoJson(zipcodes, {
+        style: style,
+        onEachFeature: onEachFeature
+    }).addTo(map);
+
+    var legend = L.control({position: 'bottomright'});
+
+    legend.onAdd = function (map) {
+
+        var div = L.DomUtil.create('div', 'info legend'),
+            grades = [0, 1, 1000, 10000, 100000],
+            labels = [],
+            from, to;
+
+        for (var i = 0; i < grades.length; i++) {
+            from = grades[i];
+            to = grades[i+1];
+
+            if(i == 0)
+            {
+                labels.push(
+                    '<i style="background:' + getColor(from + 1) + '"></i> ' +
+                    from);
+            }
+            else
+            {
+                labels.push(
+                    '<i style="background:' + getColor(from + 1) + '"></i> ' +
+                    from + (to ? '&ndash;' + to : '+'));
+            }
+        }
+
+        div.innerHTML = labels.join('<br>');
+        return div;
+    };
+
+    legend.addTo(map);
+
+
+</script>
 {% endblock %}
